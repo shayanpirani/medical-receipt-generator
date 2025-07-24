@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Medicine Receipt Generator</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: auto; padding: 20px; }
+    h2 { text-align: center; }
+    .form-group { margin-bottom: 10px; }
+    label { display: block; font-weight: bold; margin-top: 10px; }
+    input, textarea { width: 100%; padding: 6px; margin-top: 5px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
+    button { margin-top: 15px; padding: 10px 15px; }
+  </style>
+</head>
+<body>
+
+<h2>Medicine Receipt Generator</h2>
+
+<div class="form-group">
+  <label>Store Name</label>
+  <input type="text" id="storeName" value="Ali Medicos & General Store" />
+</div>
+
+<div class="form-group">
+  <label>Store Address</label>
+  <input type="text" id="storeAddress" value="Garden, East, Karachi" />
+</div>
+
+<div class="form-group">
+  <label>Customer Name</label>
+  <input type="text" id="customerName" value="Walk-in Customer" />
+</div>
+
+<div class="form-group">
+  <label>Date</label>
+  <input type="date" id="receiptDate" />
+</div>
+
+<div class="form-group">
+  <label>Time</label>
+  <input type="time" id="receiptTime" />
+</div>
+
+<h3>Items</h3>
+<table id="itemTable">
+  <thead>
+    <tr>
+      <th>Qty</th>
+      <th>Item</th>
+      <th>Retail</th>
+      <th>Discount</th>
+      <th>Price</th>
+      <th>Amount</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<button onclick="addItemRow()">+ Add Item</button>
+
+<div class="form-group">
+  <label>Amount Paid</label>
+  <input type="number" id="amountPaid" value="0" />
+</div>
+
+<div class="form-group">
+  <label>Footer Note (optional)</label>
+  <textarea id="footerNote" rows="3">
+Thank you for shopping at Ali Medicos & General Store.
+Products can be replaced within 24 hours of purchase upon presenting a valid receipt.
+Opened or used products cannot be replaced or refunded.
+  </textarea>
+</div>
+
+<button onclick="generatePDF()">Download PDF</button>
+
+<script>
+  function addItemRow() {
+    const tbody = document.querySelector('#itemTable tbody');
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td><input type="number" value="1" min="1" class="qty" /></td>
+      <td><input type="text" placeholder="Medicine name" class="item" /></td>
+      <td><input type="number" step="0.01" value="0" class="retail" /></td>
+      <td><input type="number" step="0.01" value="0" class="discount" /></td>
+      <td class="price">0.00</td>
+      <td class="amount">0.00</td>
+      <td><button onclick="this.closest('tr').remove(); calculateTotals()">Remove</button></td>
+    `;
+    tbody.appendChild(row);
+    updateRowListeners(row);
+    calculateTotals();
+  }
+
+  function updateRowListeners(row) {
+    const qty = row.querySelector('.qty');
+    const retail = row.querySelector('.retail');
+    const discount = row.querySelector('.discount');
+    qty.addEventListener('input', () => calculateRow(row));
+    retail.addEventListener('input', () => calculateRow(row));
+    discount.addEventListener('input', () => calculateRow(row));
+  }
+
+  function calculateRow(row) {
+    const qty = parseFloat(row.querySelector('.qty').value) || 0;
+    const retail = parseFloat(row.querySelector('.retail').value) || 0;
+    const discount = parseFloat(row.querySelector('.discount').value) || 0;
+    const price = retail - discount;
+    const amount = qty * price;
+    row.querySelector('.price').textContent = price.toFixed(2);
+    row.querySelector('.amount').textContent = amount.toFixed(2);
+    calculateTotals();
+  }
+
+  function calculateTotals() {
+    const rows = document.querySelectorAll('#itemTable tbody tr');
+    let total = 0, totalDiscount = 0;
+    rows.forEach(row => {
+      const qty = parseFloat(row.querySelector('.qty').value) || 0;
+      const retail = parseFloat(row.querySelector('.retail').value) || 0;
+      const discount = parseFloat(row.querySelector('.discount').value) || 0;
+      const price = retail - discount;
+      total += qty * price;
+      totalDiscount += qty * discount;
+    });
+    window.calculatedTotal = total;
+    window.calculatedDiscount = totalDiscount;
+  }
+
+  function generateRandomReceiptNumber() {
+    const date = new Date();
+    const datePart = `${date.getDate()}${date.getMonth() + 1}${date.getFullYear().toString().slice(-2)}`;
+    const random = Math.floor(100000 + Math.random() * 900000);
+    return `${datePart}${random}`;
+  }
+
+  function generatePDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const storeName = document.getElementById("storeName").value;
+    const storeAddress = document.getElementById("storeAddress").value;
+    const customerName = document.getElementById("customerName").value;
+    const date = document.getElementById("receiptDate").value;
+    const time = document.getElementById("receiptTime").value;
+    const paid = parseFloat(document.getElementById("amountPaid").value) || 0;
+    const footerNote = document.getElementById("footerNote").value;
+
+    const receiptNo = generateRandomReceiptNumber();
+    const change = (paid - window.calculatedTotal).toFixed(2);
+
+    let y = 10;
+    doc.setFontSize(14);
+    doc.text(storeName, 10, y);
+    doc.setFontSize(10);
+    doc.text(storeAddress, 10, y += 6);
+    doc.text(`Receipt #: ${receiptNo}`, 10, y += 6);
+    doc.text(`Date/Time: ${date} ${time}`, 10, y += 6);
+    doc.text(`Customer: ${customerName}`, 10, y += 6);
+
+    y += 4;
+    doc.autoTable({
+      startY: y,
+      head: [['Qty', 'Item', 'Retail', 'Discount', 'Price', 'Amount']],
+      body: Array.from(document.querySelectorAll('#itemTable tbody tr')).map(row => {
+        const qty = row.querySelector('.qty').value;
+        const item = row.querySelector('.item').value;
+        const retail = row.querySelector('.retail').value;
+        const discount = row.querySelector('.discount').value;
+        const price = row.querySelector('.price').textContent;
+        const amount = row.querySelector('.amount').textContent;
+        return [qty, item, retail, discount, price, amount];
+      }),
+      styles: { fontSize: 10 },
+      theme: 'grid'
+    });
+
+    y = doc.lastAutoTable.finalY + 6;
+    doc.text(`Total: PKR ${window.calculatedTotal.toFixed(2)}`, 10, y);
+    doc.text(`Discount: PKR ${window.calculatedDiscount.toFixed(2)}`, 10, y += 6);
+    doc.text(`Payable: PKR ${window.calculatedTotal.toFixed(2)}`, 10, y += 6);
+    doc.text(`Paid: PKR ${paid.toFixed(2)}`, 10, y += 6);
+    doc.text(`Change: PKR ${change}`, 10, y += 6);
+
+    y += 10;
+    const footerLines = doc.splitTextToSize(footerNote, 180);
+    doc.text(footerLines, 10, y);
+
+    doc.save(`Receipt_${receiptNo}.pdf`);
+  }
+</script>
+
+</body>
+</html>
